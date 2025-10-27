@@ -1,2 +1,2 @@
 run:
-	@gcc -Isrc src/main.c -o bin/main.exe && ./bin/main.exe
+	@gcc src/main.c -lpcre2-posix -o bin/main.exe && ./bin/main.exe

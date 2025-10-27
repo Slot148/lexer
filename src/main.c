@@ -1,4 +1,53 @@
-#include "main.h"
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <stdbool.h>
+#include <ctype.h>
+#include <pcre2posix.h>
+
+#define CATCH_STATUS(status_code, message) catch_status(status_code, message, __FILE__, __LINE__, __func__)
+
+typedef enum TokenType{TOK_KEYWORD, TOK_IDENTIFIER, TOK_ASSIGN, TOK_NUMBER, TOK_WHITESPACE, TOK_EOF}TokenType;
+typedef struct Token* Token;
+struct Token{
+    TokenType type;
+    char *lexeme;
+    int line;
+    int column;
+};
+
+typedef struct TokenPattern{
+    TokenType type;
+    const char *pattern;
+    int should_keep;
+    regex_t regex;
+}TokenPattern;
+
+static TokenPattern patterns[] = {
+    {TOK_KEYWORD,    "\\b(int)\\b", 1},
+    {TOK_IDENTIFIER, "[a-zA-Z_][a-zA-Z0-9_]*", 1},
+    {TOK_ASSIGN,     "=", 1},
+    {TOK_NUMBER,     "\\d+(\\.\\d+)?([eE][+-]?\\d+)?", 1},
+    {TOK_WHITESPACE, "\\s+", 0},
+    {TOK_EOF,        "\\0", 1}
+};
+
+static const char* token_type_names[] = {
+    [TOK_KEYWORD] = "KEYWORD",
+    [TOK_IDENTIFIER] = "IDENTIFIER",
+    [TOK_ASSIGN] = "ASSIGN",
+    [TOK_NUMBER] = "NUMBER",
+    [TOK_WHITESPACE] = "WHITESPACE",
+    [TOK_EOF] = "EOF"
+};
+
+typedef struct Vector* Vector;
+struct Vector{
+    Token* tokens;
+    size_t size, capacity;
+};
+
+typedef enum Status{OK, ERROR, WARNING}Status;
 
 void catch_status(Status status_code, const char* message, const char* file, int line, const char* function){
     static const char* status[] = {
@@ -64,15 +113,15 @@ Status destroy_vector(Vector this){
 }
 
 Status compile_patterns(TokenPattern patterns[], int count){
-    regex_t regex;
     for(size_t i = 0; i < count; i++){
-        Status result = regcomp(&regex, patterns[i].pattern, REG_EXTENDED);
-        if(result != OK){
+        int result = regcomp(&patterns[i].regex, patterns[i].pattern, REG_EXTENDED);
+        if(result != 0){
             char error_buffer[100];
             regerror(result, &patterns[i].regex, error_buffer, sizeof(error_buffer));
             CATCH_STATUS(result, error_buffer);
         }
     }
+    return OK;
 }
 
 Status free_patterns(TokenPattern patterns[], int count){
@@ -82,23 +131,47 @@ Status free_patterns(TokenPattern patterns[], int count){
     return OK;
 }
 
-Vector tokenizer(const char* code){
-    Vector vector = new_vector(100);
-    size_t len_code = strlen(code);
-    int column = 1, row = 1;
-    for(size_t i = 0; i < len_code; i++){
+Vector tokenize(const char *code){
+    Vector vector = new_vector(10);
+    int line = 1, column = 0;
+    char *start =(char*)code, *end = (char*)code;
+    while(*end){
 
-    };
-    return OK;
+    }
+
+    return vector;
+}
+
+bool is_delimiter(char* c){
+    
+}
+
+void print_tokens(Vector vector){
+    printf("\n=== TOKENS ENCONTRADOS ===\n");
+    for(size_t i = 0; i < vector->size; i++){
+        Token token = vector->tokens[i];
+        printf("Token[%zu]: %-12s '%-10s' (linha %d, coluna %d)\n", 
+               i, token_type_names[token->type], token->lexeme, token->line, token->column);
+    }
 }
 
 int main(){
-    const char* code = "int x = 10;";
-    Vector vector = tokenizer(code);
-    regex_t regex;
-    printf("%d\n", vector->size);
-    push_back(vector, new_token(TOK_EOF, "EOF", 0, 0));
-    printf("%d\n", vector->size);
-    printf("%s\n", vector->tokens[0]->lexeme);
+    const char *code = "int x = 10;";
+    int patterns_count = sizeof(patterns) / sizeof(patterns[0]);
+    
+    printf("Compilando %d padrões regex...\n", patterns_count);
+    
+    if(compile_patterns(patterns, patterns_count) != OK){
+        return EXIT_FAILURE;
+    }
+    
+    printf("Tokenizando: '%s'\n", code);
+    Vector vector = tokenize(code);
+    
+    print_tokens(vector);
+    
+    destroy_vector(vector);
+    free_patterns(patterns, patterns_count);
+    
     return 0;
 }
