@@ -9,6 +9,8 @@
 
 typedef enum TokenType{
     TOK_WHITESPACE,         //MANTER SEMPRE PRIMEIRO(só para ser mais rápido, vai ser o primeiro verificado)
+    TOK_NEWLINE,
+    TOK_SEMICOLON,
     TOK_KEYWORD,
     TOK_NUMBER, 
     TOK_ASSIGN, 
@@ -31,7 +33,9 @@ typedef struct TokenPattern{
 }TokenPattern;
 
 static TokenPattern patterns[TOK_EOF] = {
-    {TOK_WHITESPACE, "\\s+", 0},
+    {TOK_WHITESPACE, "[\\s\\n]", 0},
+    {TOK_NEWLINE,    "\\n", 0},
+    {TOK_SEMICOLON,  ";", 1},
     {TOK_KEYWORD,    "\\b(int)\\b", 1},
     {TOK_NUMBER,     "\\d+(\\.\\d+)?([eE][+-]?\\d+)?", 1},
     {TOK_ASSIGN,     "=", 1},
@@ -39,12 +43,14 @@ static TokenPattern patterns[TOK_EOF] = {
 };
 
 static const char* token_type_names[] = {
-    [TOK_WHITESPACE] = "WHITESPACE",
-    [TOK_KEYWORD] = "KEYWORD",
-    [TOK_NUMBER] = "NUMBER",
-    [TOK_ASSIGN] = "ASSIGN",
-    [TOK_IDENTIFIER] = "IDENTIFIER",
-    [TOK_EOF] = "EOF"
+    [TOK_WHITESPACE]  =  "WHITESPACE",
+    [TOK_NEWLINE]     =     "NEWLINE",
+    [TOK_SEMICOLON]   =   "SEMICOLON",
+    [TOK_KEYWORD]     =     "KEYWORD",
+    [TOK_NUMBER]      =      "NUMBER",
+    [TOK_ASSIGN]      =      "ASSIGN",
+    [TOK_IDENTIFIER]  =  "IDENTIFIER",
+    [TOK_EOF]         =         "EOF",
 };
 
 typedef struct Vector* Vector;
@@ -143,7 +149,7 @@ Vector tokenize(const char *code){
         regmatch_t matches[1];
         bool match = false;
         for(int i = 0; i < TOK_EOF; i++){
-            bool result = regexec(&patterns[i].regex, ptr, 1, matches, 0);
+            int result = regexec(&patterns[i].regex, ptr, 1, matches, 0);
             if(result == 0 && matches[0].rm_so == 0){
                 match = true;
                 int start = matches[0].rm_so;
@@ -154,21 +160,22 @@ Vector tokenize(const char *code){
                 if(lexeme != NULL){
                     strncpy(lexeme, ptr + start, len);
                     lexeme[len] = '\0';
+                }else{
+                    CATCH_STATUS(ERROR, "Erro ao alocar memória para o lexema");
+                    break;
+                }
+
+                if(patterns[i].type == TOK_NEWLINE){
+                    line++;
+                    column = 1;
+                }else{
+                    column += len;
                 }
 
                 if(patterns[i].should_keep){
                     push_back(vector, new_token(patterns[i].type, lexeme, line, column));
                 }else{
                     free(lexeme);
-                }
-
-                for(int j = 0; j < len; j++){
-                    if(ptr[j] == '\n'){
-                        line++;
-                        column = 1;
-                    }else{
-                        column++;
-                    }
                 }
 
                 ptr += end;
@@ -198,9 +205,9 @@ void print_tokens(Vector vector){
 }
 
 int main(){
-    const char *code = "int x = 10";
+    const char *code = "int x = 10; int y = 1";
     
-    printf("Compilando padrões regex...\n");
+    printf("Compilando padroes regex...\n");
     
     if(compile_patterns(patterns) != OK){
         return EXIT_FAILURE;
